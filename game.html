@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <title>單人 Set 桌遊</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{--card-w:110px;--card-h:130px}
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif; text-align: center; background: #fafafa; margin:0; padding:20px }
+    #game { max-width: 980px; margin: 0 auto; }
+
+    /* 固定 6 列（最多顯示 18 張），位置不會因新增而移動 */
+    .board { display: grid; grid-template-columns: repeat(6, var(--card-w)); gap: 8px; justify-content:center }
+
+    .card {
+      width: var(--card-w);
+      height: var(--card-h);
+      border: 2px solid #d0d6da;
+      background: #fff;
+      border-radius: 10px;
+      cursor: pointer;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:8px;
+      box-sizing:border-box;
+      transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
+      position:relative;
+      overflow: hidden;
+      user-select:none;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      z-index:1;
+    }
+    .card.empty{ background: #f6f8fa; border-style: dashed; opacity:0.6; cursor:default }
+
+    /* svg 會依卡片上的數量縮放，保留較小的寬度；關閉 svg 的 pointer-events 以確保點擊傳給外層 .card */
+    .card svg{ width: 72px; display:block; pointer-events: none }
+    .card svg *{ pointer-events: none }
+
+    /* 選取時上升與更明顯高亮 */
+    .card.selected{
+      transform: translateY(-10px);
+      box-shadow: 0 12px 30px rgba(30,136,255,0.22), 0 0 0 6px rgba(30,136,255,0.06) inset;
+      border-color: #1976d2;
+      z-index: 10; /* 確保選取的牌在上方 */
+    }
+
+    /* 用於提示的強烈脈衝動畫 */
+    .card.hint{ animation: pulse 900ms ease-in-out; border-color: #ffb300; box-shadow: 0 12px 28px rgba(255,179,0,0.14); z-index:9 }
+    @keyframes pulse{ 0%{ transform: translateY(0) scale(1) } 50%{ transform: translateY(-6px) scale(1.02) } 100%{ transform: translateY(0) scale(1) } }
+
+    /* 新發的牌進場動畫，其他牌保持位置不動 */
+    .card.new{ animation: dealIn 320ms ease forwards; }
+    @keyframes dealIn{ from{ transform: translateY(-18px) scale(0.96); opacity:0 } to{ transform: translateY(0) scale(1); opacity:1 } }
+
+    /* 被移除的牌淡出縮小 */
+    .card.removing{ animation: removeOut 300ms ease forwards; }
+    @keyframes removeOut{ to{ transform: translateY(18px) scale(0.85); opacity:0 } }
+
+    #controls { margin: 14px 0 18px 0; display:flex; gap:8px; align-items:center; justify-content:center; flex-wrap:wrap }
+    #controls button{ padding:8px 12px; border-radius:8px; border:1px solid #bfc8d2; background:#fff; cursor:pointer }
+    #controls span{ margin-left:6px }
+
+    #scoreboard { margin-top: 18px; }
+    table { border-collapse: collapse; margin: auto; width:100%; max-width:980px }
+    td, th { border: 1px solid #e0e6ea; padding: 6px 8px; text-align:center }
+
+    /* 大型終局提示 modal */
+    .modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,0.45); display:flex; align-items:center; justify-content:center; z-index:9999; }
+    .modal{ background:#fff; border-radius:12px; padding:22px; width: min(560px, 92%); box-shadow: 0 20px 40px rgba(0,0,0,0.25); text-align:center }
+    .modal h2{ margin:0 0 8px 0; font-size:24px }
+    .modal p{ margin:8px 0 16px 0; font-size:18px }
+    .modal .actions{ display:flex; gap:10px; justify-content:center }
+    .btn-primary{ background:#1976d2; color:#fff; border:none; padding:10px 14px; border-radius:8px; cursor:pointer }
+    .btn-ghost{ background:#fff; color:#333; border:1px solid #cfd8dc; padding:10px 14px; border-radius:8px; cursor:pointer }
+
+    /* 小尺寸調整 */
+    @media (max-width:420px){ :root{--card-w:96px;--card-h:114px} .card svg{ width:64px } .modal h2{ font-size:20px } }
+  </style>
+</head>
+<body>
+  <h1>單人 Set 桌遊</h1>
+  <div id="controls">
+    <button id="startBtn">開始遊戲</button>
+    <button id="resetBtn">重新開始</button>
+    <button id="hintBtn">提示 (顯示一組)</button>
+    <button id="downloadBtn">下載 HTML（可上傳到主機）</button>
+    <span id="timer">00:00</span>
+    <span id="score">分數: 0</span>
+  </div>
+
+  <div id="game">
+    <div class="board" id="board"></div>
+    <div style="margin-top:10px"><button id="dealMore" style="display:none">補牌</button></div>
+  </div>
+
+  <div id="scoreboard">
+    <h2>歷史紀錄</h2>
+    <table>
+      <thead><tr><th>日期</th><th>時間</th><th>分數</th><th>正確</th><th>錯誤</th></tr></thead>
+      <tbody id="history"></tbody>
+    </table>
+    <div style="margin-top:8px"><button id="clearHistory">清除紀錄</button></div>
+  </div>
+
+  <!-- SVG patterns 放在頁面中，供填充使用（更新綠與紫色） -->
+  <svg style="position:absolute; width:0; height:0;" aria-hidden="true">
+    <defs>
+      <pattern id="str-red" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
+        <rect width="100%" height="100%" fill="transparent"></rect>
+        <path d="M0 0 L0 8" stroke="#b71c1c" stroke-width="2" stroke-linecap="square"></path>
+      </pattern>
+      <pattern id="str-green" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
+        <rect width="100%" height="100%" fill="transparent"></rect>
+        <path d="M0 0 L0 8" stroke="#00695c" stroke-width="2" stroke-linecap="square"></path>
+      </pattern>
+      <pattern id="str-purple" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
+        <rect width="100%" height="100%" fill="transparent"></rect>
+        <path d="M0 0 L0 8" stroke="#6a1b9a" stroke-width="2" stroke-linecap="square"></path>
+      </pattern>
+    </defs>
+  </svg>
+
+  <!-- 大型終局提示（預設隱藏） -->
+  <div id="modalRoot" style="display:none"></div>
+
+  <script>
+    // 最大顯示槽位（最多 18 張）
+    const MAX_SLOTS = 18;
+
+    // 遊戲狀態（boardSlots 長度固定為 MAX_SLOTS，空位為 null）
+    let deck = [], boardSlots = Array(MAX_SLOTS).fill(null), selected = [];
+    let score = 0, correct = 0, wrong = 0;
+    let timerInterval = null, startTime = null;
+    let newIndices = [];
+    let gameOver = false; // 當遊戲結束時設為 true，阻擋選牌操作
+
+    const shapes = ["oval","diamond","squiggle"]; // 三種形狀
+    const fills = ["solid","striped","open"];
+    const colors = ["red","green","purple"];
+    const colorHex = { red: '#b71c1c', green: '#00695c', purple: '#6a1b9a' };
+
+    // UI 元素
+    const boardEl = document.getElementById('board');
+    const scoreEl = document.getElementById('score');
+    const timerEl = document.getElementById('timer');
+    const dealBtn = document.getElementById('dealMore');
+    const startBtn = document.getElementById('startBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const hintBtn = document.getElementById('hintBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const modalRoot = document.getElementById('modalRoot');
+
+    startBtn.addEventListener('click', startGame);
+    resetBtn.addEventListener('click', ()=>{ stopTimer(); startGame(); });
+    dealBtn.addEventListener('click', ()=>{ dealMore(true); });
+    document.getElementById('clearHistory').addEventListener('click', clearHistory);
+    hintBtn.addEventListener('click', showHint);
+    downloadBtn.addEventListener('click', downloadHTML);
+
+    // 使用事件代理確保每張牌（包含新加入者）都能被點到
+    boardEl.addEventListener('pointerdown', (e)=>{
+      // 確保點擊不會被 SVG 子元素吃掉：使用 closest 查找帶有 data-index 的 .card
+      const cardDiv = e.target.closest('.card');
+      if (!cardDiv) return;
+      const idx = Number(cardDiv.dataset.index);
+      if (isNaN(idx)) return;
+      if (gameOver) return; // 結束後阻擋互動，直到重啟
+      if (!boardSlots[idx]) return; // 空槽不可選
+      e.preventDefault();
+      toggleSelect(idx);
+    });
+
+    // 建立牌堆，並確保 81 張不重複
+    function makeDeck(){
+      const d=[];
+      for(let num=1;num<=3;num++){
+        for(let shape of shapes){
+          for(let fill of fills){
+            for(let color of colors){
+              d.push({id:`${num}-${shape}-${fill}-${color}`, num,shape,fill,color});
+            }
+          }
+        }
+      }
+      return shuffle(d);
+    }
+
+    function shuffle(a){
+      for(let i=a.length-1;i>0;i--){
+        const j = Math.floor(Math.random()*(i+1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    function startGame(){
+      deck = makeDeck();
+      if (deck.length !== 81) console.warn('deck length != 81', deck.length);
+      boardSlots = Array(MAX_SLOTS).fill(null);
+      // 初始填前 12 格
+      for(let i=0;i<12;i++) boardSlots[i] = deck.pop();
+      selected = [];
+      score = 0; correct = 0; wrong = 0;
+      gameOver = false;
+      scoreEl.innerText = '分數: 0';
+      newIndices = [...Array(12).keys()];
+      startTimer();
+      render();
+      // 若初始 12 張沒有任何 Set，自動補牌直到有或用完（遵循最大 18 張）
+      ensureSetOrExhaust();
+      hideModal();
+    }
+
+    // Render 固定槽位，空槽顯示空白卡（位置固定）
+    function render(){
+      boardEl.innerHTML = '';
+      for(let idx=0; idx<MAX_SLOTS; idx++){
+        const card = boardSlots[idx];
+        const div = document.createElement('div');
+        div.className = card ? 'card' : 'card empty';
+        if (newIndices.includes(idx)) div.classList.add('new');
+        if (selected.includes(idx)) div.classList.add('selected');
+        div.dataset.index = idx;
+        div.innerHTML = card ? cardHtml(card) : '';
+        boardEl.appendChild(div);
+      }
+      // newIndices 只保留一次動畫
+      setTimeout(()=>{ newIndices = []; }, 360);
+      checkDealMore();
+    }
+
+    // 切換選取（使用 slot index）
+    function toggleSelect(idx){
+      if (selected.includes(idx)) selected = selected.filter(x=>x!==idx);
+      else selected.push(idx);
+      // 立即更新 class
+      const node = boardEl.querySelector(`.card[data-index='${idx}']`);
+      if (node) node.classList.toggle('selected', selected.includes(idx));
+
+      if (selected.length===3) handleThreeSelected();
+    }
+
+    // 處理三張被選中
+    function handleThreeSelected(){
+      const cards = selected.map(i=>boardSlots[i]);
+      const selectedNodes = Array.from(boardEl.querySelectorAll('.card')).filter(n=> selected.includes(Number(n.dataset.index)));
+      if (isSet(cards)){
+        selectedNodes.forEach(n=> n.classList.add('removing'));
+        setTimeout(()=>{
+          // 清空對應槽位
+          selected.forEach(i=> boardSlots[i] = null);
+          // 補牌至至少 12 張（若可能）
+          fillToMinimum();
+          score++; correct++; scoreEl.innerText = '分數: '+score;
+          selected = [];
+          render();
+          ensureSetOrExhaust();
+          checkEnd();
+        }, 320);
+      } else {
+        // 錯誤反饋（不扣分）
+        selectedNodes.forEach(n=> n.animate([
+          { transform: 'translateY(0)' }, { transform: 'translateY(-6px)' }, { transform: 'translateY(0)' }
+        ], { duration: 260 }));
+        wrong++; // 不再扣分
+        scoreEl.innerText = '分數: '+score;
+        setTimeout(()=>{ selected = []; render(); }, 260);
+      }
+    }
+
+    // 產生單張卡的 SVG HTML（會依數量動態縮放）
+    function cardHtml(c){
+      const hex = colorHex[c.color] || '#000';
+      const fill = (c.fill==='solid') ? hex : (c.fill==='striped' ? `url(#str-${c.color})` : 'none');
+      const stroke = hex;
+      let svgW = 72;
+      // svg 高度依數量縮小，避免溢出
+      const svgH = (c.num===1)?36: (c.num===2)?30:24;
+      let shapeSvg='';
+      if (c.shape==='oval'){
+        shapeSvg = `<svg viewBox="0 0 100 40" preserveAspectRatio="xMidYMid meet" style="width:${svgW}px;height:${svgH}px"><ellipse cx="50" cy="20" rx="38" ry="14" fill="${fill}" stroke="${stroke}" stroke-width="2"/></svg>`;
+      } else if (c.shape==='diamond'){
+        shapeSvg = `<svg viewBox="0 0 100 60" preserveAspectRatio="xMidYMid meet" style="width:${svgW}px;height:${svgH}px"><polygon points="50,6 94,30 50,54 6,30" fill="${fill}" stroke="${stroke}" stroke-width="2"/></svg>`;
+      } else {
+        shapeSvg = `<svg viewBox="0 0 120 48" preserveAspectRatio="xMidYMid meet" style="width:${svgW}px;height:${svgH}px"><path d="M8 24 C18 6, 38 6, 48 24 C58 42, 78 42, 88 24 C98 6, 118 6, 112 24 C106 42, 86 42, 76 24 C66 6, 46 6, 36 24 C26 42, 6 42, 8 24 Z" fill="${fill}" stroke="${stroke}" stroke-width="2"/></svg>`;
+      }
+      let items = '';
+      for(let i=0;i<c.num;i++) items += `<div style="margin:2px 0">${shapeSvg}</div>`;
+      return `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%">${items}</div>`;
+    }
+
+    // 判斷 Set
+    function isSet(cards){
+      function allSameOrAllDiff(a,b,c){ return (a===b && b===c) || (a!==b && b!==c && a!==c); }
+      return allSameOrAllDiff(cards[0].num,cards[1].num,cards[2].num)
+        && allSameOrAllDiff(cards[0].shape,cards[1].shape,cards[2].shape)
+        && allSameOrAllDiff(cards[0].fill,cards[1].fill,cards[2].fill)
+        && allSameOrAllDiff(cards[0].color,cards[1].color,cards[2].color);
+    }
+
+    // 把空槽位先填滿直到至少 12 張（若 deck 可用）
+    function fillToMinimum(){
+      let active = boardSlots.filter(x=>x).length;
+      for(let i=0;i<MAX_SLOTS && active<12;i++){
+        if (!boardSlots[i] && deck.length>0){ boardSlots[i] = deck.pop(); newIndices.push(i); active++; }
+      }
+    }
+
+    // 補牌：forced=true 表示無條件再補 3 張（放到第一個空位或追加到末端），否則嘗試填滿到 12
+    function dealMore(forced=false){
+      if (forced){
+        let added = 0;
+        for(let i=0;i<MAX_SLOTS && added<3;i++){
+          if (!boardSlots[i] && deck.length>0){ boardSlots[i] = deck.pop(); newIndices.push(i); added++; }
+        }
+        // 如果沒有空位且尚未達到 MAX_SLOTS，追加到第一可用末端索引
+        if (added<3){
+          for(let i=0;i<MAX_SLOTS && added<3;i++){
+            if (!boardSlots[i] && deck.length>0){ boardSlots[i] = deck.pop(); newIndices.push(i); added++; }
+          }
+        }
+        render();
+      } else {
+        fillToMinimum(); render();
+      }
+    }
+
+    // 檢查是否存在 Set
+    function existsSet(arr){
+      const cards = arr.filter(x=>x);
+      for(let i=0;i<arr.length;i++){
+        if (!arr[i]) continue;
+        for(let j=i+1;j<arr.length;j++){
+          if (!arr[j]) continue;
+          for(let k=j+1;k<arr.length;k++){
+            if (!arr[k]) continue;
+            if (isSet([arr[i],arr[j],arr[k]])) return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    // 若桌面沒有 Set 且還有牌，自動補牌（直到有或到達 MAX_SLOTS 或用完牌）
+    function ensureSetOrExhaust(){
+      // 少許延遲給 render 動畫看起來不突兀
+      setTimeout(()=>{
+        if (!existsSet(boardSlots) && deck.length>0){
+          // 補 3 張並再次檢查（最多到 MAX_SLOTS）
+          let space = boardSlots.filter(x=>x===null).length;
+          if (space>0){
+            dealMore(true);
+            // 再次檢查；遞迴直到有 set 或無牌或達上限
+            setTimeout(()=>{ ensureSetOrExhaust(); }, 420);
+          }
+        }
+      }, 180);
+    }
+
+    // 顯示 / 隱藏補牌按鈕（仍保留按鈕作為手動操作）
+    function checkDealMore(){
+      if (!existsSet(boardSlots) && deck.length>0) dealBtn.style.display='inline-block';
+      else dealBtn.style.display='none';
+    }
+
+    // 結束條件
+    function checkEnd(){
+      if (deck.length===0 && !existsSet(boardSlots)){
+        stopTimer(); saveResult(); showEndModal(); gameOver = true; }
+    }
+
+    // 計時器
+    function startTimer(){ startTime = Date.now(); clearInterval(timerInterval); timerInterval = setInterval(()=>{
+      const diff = Math.floor((Date.now()-startTime)/1000);
+      const m = String(Math.floor(diff/60)).padStart(2,'0');
+      const s = String(diff%60).padStart(2,'0');
+      timerEl.innerText = `${m}:${s}`;
+    }, 500); }
+    function stopTimer(){ clearInterval(timerInterval); }
+
+    // 歷史紀錄
+    function saveResult(){
+      const diff = Math.floor((Date.now()-startTime)/1000);
+      const rec = { date: new Date().toLocaleString(), time: diff, score, correct, wrong };
+      const hist = JSON.parse(localStorage.getItem('setHistory')||'[]');
+      hist.push(rec); localStorage.setItem('setHistory', JSON.stringify(hist)); loadHistory();
+    }
+    function loadHistory(){
+      const hist = JSON.parse(localStorage.getItem('setHistory')||'[]');
+      const tbody = document.getElementById('history'); tbody.innerHTML='';
+      hist.forEach(r=>{ const tr = document.createElement('tr'); tr.innerHTML = `<td>${r.date}</td><td>${Math.floor(r.time/60)}:${String(r.time%60).padStart(2,'0')}</td><td>${r.score}</td><td>${r.correct}</td><td>${r.wrong}</td>`; tbody.appendChild(tr); });
+    }
+    function clearHistory(){ localStorage.removeItem('setHistory'); loadHistory(); }
+
+    // 顯示大型終局提示
+    function showEndModal(){
+      modalRoot.innerHTML = `
+        <div class="modal-backdrop">
+          <div class="modal" role="dialog" aria-modal="true">
+            <h2>遊戲結束</h2>
+            <p>得分：${score}　正確：${correct}　錯誤：${wrong}</p>
+            <div class="actions">
+              <button class="btn-primary" id="restartFromModal">重新開始</button>
+              <button class="btn-ghost" id="closeModal">關閉</button>
+            </div>
+          </div>
+        </div>
+      `;
+      modalRoot.style.display = 'block';
+      document.getElementById('restartFromModal').addEventListener('click', ()=>{ hideModal(); stopTimer(); startGame(); });
+      document.getElementById('closeModal').addEventListener('click', hideModal);
+    }
+    function hideModal(){ modalRoot.style.display='none'; modalRoot.innerHTML=''; }
+
+ 
+    function showHint(){
+      for(let i=0;i<boardSlots.length;i++){
+        if (!boardSlots[i]) continue;
+        for(let j=i+1;j<boardSlots.length;j++){
+          if (!boardSlots[j]) continue;
+          for(let k=j+1;k<boardSlots.length;k++){
+            if (!boardSlots[k]) continue;
+            if (isSet([boardSlots[i],boardSlots[j],boardSlots[k]])){
+              const nodes = Array.from(boardEl.querySelectorAll('.card'));
+              [i,j,k].forEach(idx=> nodes[idx].classList.add('hint'));
+              setTimeout(()=> nodes.forEach(n=> n.classList.remove('hint')), 900);
+              return;
+            }
+          }
+        }
+      }
+    
+      if (deck.length>0) dealMore(true);
+    }
+
+   
+    function downloadHTML(){
+      const html = '<!doctype html>
+' + document.documentElement.outerHTML;
+      const blob = new Blob([html], {type: 'text/html'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'set.html'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    }
+
+
+    loadHistory();
+
+  </script>
+</body>
+</html>
