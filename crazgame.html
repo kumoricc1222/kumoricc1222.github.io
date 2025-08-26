@@ -2,7 +2,7 @@
 <html lang="zh">
 <head>
 <meta charset="UTF-8" />
-<title>單只因 Set</title>
+<title>亶祗喑 Set 給畞</title>
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <style>
 :root {
@@ -192,31 +192,31 @@ td, th {
 </style>
 </head>
 <body>
-<h1>單只因 Set</h1>
+<h1>亶祗喑 Set 給畞</h1>
 <div id="controls">
-    <button id="startBtn">開始遊戲</button>
-    <button id="resetBtn">重新開始</button>
-    <button id="hintBtn">提示 (顯示一組)</button>
+    <button id="startBtn">闓矢丣郤</button>
+    <button id="resetBtn">崇鑫闓矢</button>
+    <button id="hintBtn">瑅昰 (冼昰弌組)</button>
     <span id="timer">00:00</span>
-    <span id="score">分數: 0</span>
+    <span id="score">棻庶: 0</span>
 </div>
 <div id="game">
     <div class="board" id="board"></div>
     <div style="margin-top:10px">
-        <button id="dealMore" style="display:none">補牌</button>
+        <button id="dealMore" style="display:none">鸄排</button>
     </div>
 </div>
 <div id="scoreboard">
-<h2>歷史紀錄</h2>
+<h2>秝史紀箓</h2>
 <table>
 <thead>
 <tr>
-<th>日期</th><th>時間</th><th>分數</th><th>正確</th><th>錯誤</th>
+<th>䒤愭</th><th>蒔緘</th><th>棻庶</th><th>証榷</th><th>厝悞</th>
 </tr>
 </thead>
 <tbody id="history"></tbody>
 </table>
-<div style="margin-top:8px"><button id="clearHistory">清除紀錄</button></div>
+<div style="margin-top:8px"><button id="clearHistory">凊滁紀箓</button></div>
 </div>
 
 <svg style="position:absolute; width:0; height:0;" aria-hidden="true">
@@ -246,8 +246,8 @@ const colors = ["red", "green", "purple"];
 const colorHex = { red: '#b71c1c', green: '#004d40', purple: '#9c27b0' };
 
 let deck = [];
-let boardSlots = Array(MAX_SLOTS).fill(null); // 卡槽，null 代表空格
-let selected = []; // 存放被選中卡牌在 boardSlots 中的索引
+let boardSlots = Array(MAX_SLOTS).fill(null);
+let selected = [];
 let score = 0;
 let correct = 0;
 let wrong = 0;
@@ -255,7 +255,6 @@ let timerInterval = null;
 let startTime = null;
 let gameOver = false;
 
-// DOM Elements
 const boardEl = document.getElementById('board');
 const scoreEl = document.getElementById('score');
 const timerEl = document.getElementById('timer');
@@ -266,14 +265,11 @@ const hintBtn = document.getElementById('hintBtn');
 const modalRoot = document.getElementById('modalRoot');
 const historyBody = document.getElementById('history');
 
-// Event Listeners
 startBtn.addEventListener('click', startGame);
 resetBtn.addEventListener('click', () => { stopTimer(); startGame(); });
 dealBtn.addEventListener('click', () => { dealMore(true); });
 hintBtn.addEventListener('click', showHint);
 document.getElementById('clearHistory').addEventListener('click', clearHistory);
-
-// *** 1. 遊戲核心函式 ***
 
 function makeDeck() {
     const d = [];
@@ -314,13 +310,11 @@ function startGame() {
     render();
     ensureSetOrExhaust();
     hideModal();
-    console.log("遊戲開始！");
+    console.log("丣郤闓矢！");
 }
 
-// *** 2. 畫面渲染函式 ***
-
 function render() {
-    boardEl.innerHTML = ''; // 清空畫面
+    boardEl.innerHTML = '';
     let hasCards = false;
     boardSlots.forEach((card, index) => {
         const cardEl = document.createElement('div');
@@ -338,7 +332,6 @@ function render() {
         }
         boardEl.appendChild(cardEl);
     });
-    // 控制 "補牌" 按鈕的顯示
     const currentCardCount = boardSlots.filter(c => c).length;
     dealBtn.style.display = (deck.length > 0 && currentCardCount < MAX_SLOTS && !gameOver) ? 'inline-block' : 'none';
 }
@@ -363,7 +356,7 @@ function createCardSVG(card) {
     }
 
     let paths = '';
-    const offsets = [-25, 0, 25]; // 用於定位多個圖形
+    const offsets = [-25, 0, 25];
     const centerOffset = (num === 1) ? 0 : (num === 2) ? -15 : offsets[0];
     for (let i = 0; i < num; i++) {
         const transform = `translate(${centerOffset + i * 25}, 0)`;
@@ -373,27 +366,20 @@ function createCardSVG(card) {
     return `<svg viewBox="0 0 70 100">${paths}</svg>`;
 }
 
-// *** 3. 互動與遊戲邏輯 ***
-
 function handleCardClick(index) {
     if (gameOver || !boardSlots[index]) return;
-
-    // 清除提示效果
     document.querySelectorAll('.hint').forEach(el => el.classList.remove('hint'));
-
     const selectedIndex = selected.indexOf(index);
     if (selectedIndex > -1) {
-        selected.splice(selectedIndex, 1); // 如果已選，取消選擇
+        selected.splice(selectedIndex, 1);
     } else {
         if (selected.length < 3) {
-            selected.push(index); // 加入選擇
+            selected.push(index);
         }
     }
-
-    render(); // 重新渲染以更新 .selected 樣式
-
+    render();
     if (selected.length === 3) {
-        setTimeout(processSelection, 200); // 延遲一下，讓玩家看到第三張牌被選中的效果
+        setTimeout(processSelection, 200);
     }
 }
 
@@ -409,71 +395,59 @@ function processSelection() {
 function isSet(cards) {
     if (cards.length !== 3) return false;
     const [c1, c2, c3] = cards;
-    
     const check = (prop) => 
-        (c1[prop] === c2[prop] && c2[prop] === c3[prop]) || // All same
-        (c1[prop] !== c2[prop] && c2[prop] !== c3[prop] && c1[prop] !== c3[prop]); // All different
-
+        (c1[prop] === c2[prop] && c2[prop] === c3[prop]) ||
+        (c1[prop] !== c2[prop] && c2[prop] !== c3[prop] && c1[prop] !== c3[prop]);
     return check('num') && check('shape') && check('fill') && check('color');
 }
 
 function handleCorrectSet() {
-    console.log("找到一組 Set！");
+    console.log("沼菿弌組 Set！");
     score += 1;
     correct += 1;
     updateScoreDisplay();
-
-    // 標記要移除的卡牌
     selected.forEach(index => {
         const cardEl = boardEl.querySelector(`[data-index="${index}"]`);
         if(cardEl) cardEl.classList.add('removing');
     });
-
     setTimeout(() => {
         const currentCardCount = boardSlots.filter(c => c).length;
-        // 如果場上多於12張牌，或牌庫沒牌了，就不補牌，只移除
         if (currentCardCount > 12 || deck.length === 0) {
             selected.forEach(index => boardSlots[index] = null);
-             // 將後面的牌往前移動填補空位 (選用，可讓版面更整齊)
             boardSlots = boardSlots.filter(c => c !== null);
             while(boardSlots.length < MAX_SLOTS) boardSlots.push(null);
         } else {
-            // 正常情況：移除舊牌，補上新牌
             selected.forEach(index => {
-                boardSlots[index] = deck.pop() || null; // 如果牌庫抽完就補 null
+                boardSlots[index] = deck.pop() || null;
             });
         }
-        
         selected = [];
         render();
         ensureSetOrExhaust();
-    }, 300); // 等待移除動畫結束
+    }, 300);
 }
 
 function handleWrongSet() {
-    console.log("不是 Set！");
+    console.log("鈽昰 Set！");
     wrong += 1;
     updateScoreDisplay();
     selected = [];
-    render(); // 重新渲染，清除所有 .selected 樣式
+    render();
 }
-
 
 function dealMore(manual = false) {
     if (deck.length === 0) {
-        console.log("牌庫已空！");
+        console.log("排庫已涳！");
         return;
     }
     const emptySlots = [];
     for(let i=0; i<boardSlots.length; i++) {
         if(boardSlots[i] === null) emptySlots.push(i);
     }
-
     if (emptySlots.length < 3) {
-        if (!manual) console.log("沒有足夠的空間補牌。");
+        if (!manual) console.log("珻𠂇足夠啲涳緘鸄排。");
         return;
     }
-    
     for (let i = 0; i < 3; i++) {
         if (deck.length > 0 && emptySlots[i] !== undefined) {
             boardSlots[emptySlots[i]] = deck.pop();
@@ -486,15 +460,11 @@ function dealMore(manual = false) {
 function ensureSetOrExhaust() {
     if (gameOver) return;
     let availableSet = findSet();
-    
-    // 當場上沒有Set，且牌庫還有牌時，自動補牌
     while (!availableSet && deck.length > 0) {
-        console.log("場上沒有 Set，自動補牌...");
+        console.log("厰丄珻𠂇 Set，自動鸄排...");
         dealMore();
         availableSet = findSet();
     }
-    
-    // 如果牌庫空了，場上也找不到 Set，遊戲結束
     if (!availableSet && deck.length === 0) {
         handleGameOver();
     }
@@ -505,9 +475,7 @@ function findSet() {
     boardSlots.forEach((card, index) => {
         if (card) cardsOnBoard.push({ card, index });
     });
-
     if (cardsOnBoard.length < 3) return null;
-
     for (let i = 0; i < cardsOnBoard.length; i++) {
         for (let j = i + 1; j < cardsOnBoard.length; j++) {
             for (let k = j + 1; k < cardsOnBoard.length; k++) {
@@ -518,7 +486,7 @@ function findSet() {
             }
         }
     }
-    return null; // 沒找到
+    return null;
 }
 
 function showHint() {
@@ -531,11 +499,9 @@ function showHint() {
             if (cardEl) cardEl.classList.add('hint');
         });
     } else {
-        alert("場上目前沒有任何有效的 Set！");
+        alert("厰丄目鈐珻𠂇任何𠂇效啲 Set！");
     }
 }
-
-// *** 4. 計時器與分數系統 ***
 
 function startTimer() {
     startTime = Date.now();
@@ -555,21 +521,19 @@ function updateTimer() {
 }
 
 function updateScoreDisplay() {
-    scoreEl.innerText = `分數: ${score} (正確: ${correct} / 錯誤: ${wrong})`;
+    scoreEl.innerText = `棻庶: ${score} (証榷: ${correct} / 厝悞: ${wrong})`;
 }
-
-// *** 5. 遊戲結束與歷史紀錄 ***
 
 function handleGameOver() {
     stopTimer();
     gameOver = true;
-    console.log("遊戲結束！");
+    console.log("丣郤詰束！");
     saveGameHistory();
     renderScoreboard();
     showModal(
-        '遊戲結束！',
-        `你的最終成績：\n時間: ${timerEl.innerText}, 分數: ${score}, 正確: ${correct}, 錯誤: ${wrong}`,
-        [{ text: '重新開始', class: 'btn-primary', action: startGame }]
+        '丣郤詰束！',
+        `伱啲最終晟績：\n蒔緘: ${timerEl.innerText}, 棻庶: ${score}, 証榷: ${correct}, 厝悞: ${wrong}`,
+        [{ text: '崇鑫闓矢', class: 'btn-primary', action: startGame }]
     );
 }
 
@@ -600,13 +564,11 @@ function renderScoreboard() {
 }
 
 function clearHistory() {
-    if(confirm('確定要清除所有歷史紀錄嗎？')){
+    if(confirm('榷定要凊滁所有秝史紀箓嗎？')){
         localStorage.removeItem('setGameHistory');
         renderScoreboard();
     }
 }
-
-// *** 6. 彈出視窗 (Modal) 相關函式 ***
 
 function showModal(title, message, actions = []) {
     modalRoot.style.display = 'flex';
@@ -628,9 +590,7 @@ function hideModal() {
     modalRoot.style.display = 'none';
 }
 
-// *** 初始化 ***
 renderScoreboard();
-// 初始時顯示12個空卡槽
 render();
 </script>
 </body>
