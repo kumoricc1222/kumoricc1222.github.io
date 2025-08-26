@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8" />
+<title>單只因 Set</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+:root {
+    --card-w: 110px;
+    --card-h: 130px;
+}
+body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+    text-align: center;
+    background: #fafafa;
+    margin: 0;
+    padding: 20px;
+}
+#game {
+    max-width: 980px;
+    margin: 0 auto;
+}
+.board {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(var(--card-w), 1fr));
+    gap: 8px;
+    justify-content: center;
+    max-width: calc(var(--card-w) * 6 + 40px);
+    margin: 0 auto;
+}
+.card {
+    width: var(--card-w);
+    height: var(--card-h);
+    border: 2px solid #d0d6da;
+    background: #fff;
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    box-sizing: border-box;
+    transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
+    position: relative;
+    overflow: hidden;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    z-index: 1;
+}
+.card.empty {
+    background: #f6f8fa;
+    border-style: dashed;
+    opacity: 0.6;
+    cursor: default;
+}
+.card svg {
+    width: 72px;
+    display: block;
+    pointer-events: none;
+}
+.card svg * {
+    pointer-events: none;
+}
+.card.selected {
+    transform: translateY(-10px);
+    box-shadow: 0 12px 30px rgba(30,136,255,0.22),
+                0 0 0 6px rgba(30,136,255,0.06) inset;
+    border-color: #1976d2;
+    z-index: 10;
+}
+.card.hint {
+    animation: pulse 900ms ease-in-out;
+    border-color: #ffb300;
+    box-shadow: 0 12px 28px rgba(255,179,0,0.14);
+    z-index: 9;
+}
+@keyframes pulse {
+    0% { transform: translateY(0) scale(1); }
+    50% { transform: translateY(-6px) scale(1.02); }
+    100% { transform: translateY(0) scale(1); }
+}
+.card.new {
+    animation: dealIn 320ms ease forwards;
+}
+@keyframes dealIn {
+    from { transform: translateY(-18px) scale(0.96); opacity: 0; }
+    to { transform: translateY(0) scale(1); opacity: 1; }
+}
+.card.removing {
+    animation: removeOut 300ms ease forwards;
+}
+@keyframes removeOut {
+    to { transform: translateY(18px) scale(0.85); opacity: 0; }
+}
+#controls {
+    margin: 14px 0 18px 0;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+#controls button {
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid #bfc8d2;
+    background: #fff;
+    cursor: pointer;
+}
+#controls span {
+    margin-left: 6px;
+}
+#scoreboard {
+    margin-top: 18px;
+}
+table {
+    border-collapse: collapse;
+    margin: auto;
+    width: 100%;
+    max-width: 980px;
+}
+td, th {
+    border: 1px solid #e0e6ea;
+    padding: 6px 8px;
+    text-align: center;
+}
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+.modal {
+    background: #fff;
+    border-radius: 12px;
+    padding: 22px;
+    width: min(560px, 92%);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.25);
+    text-align: center;
+}
+.modal h2 {
+    margin: 0 0 8px 0;
+    font-size: 24px;
+}
+.modal p {
+    margin: 8px 0 16px 0;
+    font-size: 18px;
+}
+.modal .actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+.btn-primary {
+    background: #1976d2;
+    color: #fff;
+    border: none;
+    padding: 10px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+.btn-ghost {
+    background: #fff;
+    color: #333;
+    border: 1px solid #cfd8dc;
+    padding: 10px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+@media (max-width: 720px) {
+    .board {
+        grid-template-columns: repeat(auto-fit, minmax(var(--card-w), 1fr));
+        max-width: calc(var(--card-w) * 4 + 24px);
+    }
+}
+@media (max-width: 480px) {
+    :root {
+        --card-w: 96px;
+        --card-h: 114px;
+    }
+    .board {
+        grid-template-columns: repeat(auto-fit, minmax(var(--card-w), 1fr));
+        max-width: calc(var(--card-w) * 3 + 16px);
+    }
+    .card svg { width: 64px; }
+    .modal h2 { font-size: 20px; }
+}
+</style>
+</head>
+<body>
+<h1>單只因 Set</h1>
+<div id="controls">
+    <button id="startBtn">開始遊戲</button>
+    <button id="resetBtn">重新開始</button>
+    <button id="hintBtn">提示 (顯示一組)</button>
+    <span id="timer">00:00</span>
+    <span id="score">分數: 0</span>
+</div>
+<div id="game">
+    <div class="board" id="board"></div>
+    <div style="margin-top:10px">
+        <button id="dealMore" style="display:none">補牌</button>
+    </div>
+</div>
+<div id="scoreboard">
+<h2>歷史紀錄</h2>
+<table>
+<thead>
+<tr>
+<th>日期</th><th>時間</th><th>分數</th><th>正確</th><th>錯誤</th>
+</tr>
+</thead>
+<tbody id="history"></tbody>
+</table>
+<div style="margin-top:8px"><button id="clearHistory">清除紀錄</button></div>
+</div>
+
+<svg style="position:absolute; width:0; height:0;" aria-hidden="true">
+<defs>
+<pattern id="str-red" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
+<rect width="100%" height="100%" fill="transparent"></rect>
+<path d="M0 0 L0 8" stroke="#b71c1c" stroke-width="2" stroke-linecap="square"></path>
+</pattern>
+<pattern id="str-green" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
+<rect width="100%" height="100%" fill="transparent"></rect>
+<path d="M0 0 L0 8" stroke="#004d40" stroke-width="2" stroke-linecap="square"></path>
+</pattern>
+<pattern id="str-purple" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
+<rect width="100%" height="100%" fill="transparent"></rect>
+<path d="M0 0 L0 8" stroke="#9c27b0" stroke-width="2" stroke-linecap="square"></path>
+</pattern>
+</defs>
+</svg>
+
+<div id="modalRoot" style="display:none"></div>
+
+<script>
+const MAX_SLOTS = 18;
+const shapes = ["oval", "diamond", "squiggle"];
+const fills = ["solid", "striped", "open"];
+const colors = ["red", "green", "purple"];
+const colorHex = { red: '#b71c1c', green: '#004d40', purple: '#9c27b0' };
+
+let deck = [];
+let boardSlots = Array(MAX_SLOTS).fill(null); // 卡槽，null 代表空格
+let selected = []; // 存放被選中卡牌在 boardSlots 中的索引
+let score = 0;
+let correct = 0;
+let wrong = 0;
+let timerInterval = null;
+let startTime = null;
+let gameOver = false;
+
+// DOM Elements
+const boardEl = document.getElementById('board');
+const scoreEl = document.getElementById('score');
+const timerEl = document.getElementById('timer');
+const dealBtn = document.getElementById('dealMore');
+const startBtn = document.getElementById('startBtn');
+const resetBtn = document.getElementById('resetBtn');
+const hintBtn = document.getElementById('hintBtn');
+const modalRoot = document.getElementById('modalRoot');
+const historyBody = document.getElementById('history');
+
+// Event Listeners
+startBtn.addEventListener('click', startGame);
+resetBtn.addEventListener('click', () => { stopTimer(); startGame(); });
+dealBtn.addEventListener('click', () => { dealMore(true); });
+hintBtn.addEventListener('click', showHint);
+document.getElementById('clearHistory').addEventListener('click', clearHistory);
+
+// *** 1. 遊戲核心函式 ***
+
+function makeDeck() {
+    const d = [];
+    for (let num = 1; num <= 3; num++) {
+        for (let shape of shapes) {
+            for (let fill of fills) {
+                for (let color of colors) {
+                    d.push({ id: `${num}-${shape}-${fill}-${color}`, num, shape, fill, color });
+                }
+            }
+        }
+    }
+    return shuffle(d);
+}
+
+function shuffle(a) {
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
+
+function startGame() {
+    stopTimer();
+    deck = makeDeck();
+    boardSlots = Array(MAX_SLOTS).fill(null);
+    for (let i = 0; i < 12; i++) {
+        boardSlots[i] = deck.pop();
+    }
+    selected = [];
+    score = 0;
+    correct = 0;
+    wrong = 0;
+    gameOver = false;
+    updateScoreDisplay();
+    startTimer();
+    render();
+    ensureSetOrExhaust();
+    hideModal();
+    console.log("遊戲開始！");
+}
+
+// *** 2. 畫面渲染函式 ***
+
+function render() {
+    boardEl.innerHTML = ''; // 清空畫面
+    let hasCards = false;
+    boardSlots.forEach((card, index) => {
+        const cardEl = document.createElement('div');
+        cardEl.className = 'card';
+        if (card) {
+            hasCards = true;
+            cardEl.dataset.index = index;
+            cardEl.innerHTML = createCardSVG(card);
+            if (selected.includes(index)) {
+                cardEl.classList.add('selected');
+            }
+            cardEl.addEventListener('click', () => handleCardClick(index));
+        } else {
+            cardEl.classList.add('empty');
+        }
+        boardEl.appendChild(cardEl);
+    });
+    // 控制 "補牌" 按鈕的顯示
+    const currentCardCount = boardSlots.filter(c => c).length;
+    dealBtn.style.display = (deck.length > 0 && currentCardCount < MAX_SLOTS && !gameOver) ? 'inline-block' : 'none';
+}
+
+function createCardSVG(card) {
+    const { num, shape, fill, color } = card;
+    let shapePath = '';
+    const fillStyle = (fill === 'solid') ? colorHex[color] :
+                      (fill === 'striped') ? `url(#str-${color})` : 'transparent';
+    const strokeStyle = colorHex[color];
+
+    switch (shape) {
+        case 'oval':
+            shapePath = 'M35 10 C15 10 15 90 35 90 S55 90 55 50 S35 10 35 10 Z';
+            break;
+        case 'diamond':
+            shapePath = 'M35 5 L65 50 L35 95 L5 50 Z';
+            break;
+        case 'squiggle':
+            shapePath = 'M10 80 C 15 20, 50 20, 60 50 S 70 90, 45 90 C 40 70, 20 70, 10 80 Z';
+            break;
+    }
+
+    let paths = '';
+    const offsets = [-25, 0, 25]; // 用於定位多個圖形
+    const centerOffset = (num === 1) ? 0 : (num === 2) ? -15 : offsets[0];
+    for (let i = 0; i < num; i++) {
+        const transform = `translate(${centerOffset + i * 25}, 0)`;
+        paths += `<path d="${shapePath}" transform="${transform}" stroke="${strokeStyle}" stroke-width="3" fill="${fillStyle}" />`;
+    }
+
+    return `<svg viewBox="0 0 70 100">${paths}</svg>`;
+}
+
+// *** 3. 互動與遊戲邏輯 ***
+
+function handleCardClick(index) {
+    if (gameOver || !boardSlots[index]) return;
+
+    // 清除提示效果
+    document.querySelectorAll('.hint').forEach(el => el.classList.remove('hint'));
+
+    const selectedIndex = selected.indexOf(index);
+    if (selectedIndex > -1) {
+        selected.splice(selectedIndex, 1); // 如果已選，取消選擇
+    } else {
+        if (selected.length < 3) {
+            selected.push(index); // 加入選擇
+        }
+    }
+
+    render(); // 重新渲染以更新 .selected 樣式
+
+    if (selected.length === 3) {
+        setTimeout(processSelection, 200); // 延遲一下，讓玩家看到第三張牌被選中的效果
+    }
+}
+
+function processSelection() {
+    const cards = selected.map(index => boardSlots[index]);
+    if (isSet(cards)) {
+        handleCorrectSet();
+    } else {
+        handleWrongSet();
+    }
+}
+
+function isSet(cards) {
+    if (cards.length !== 3) return false;
+    const [c1, c2, c3] = cards;
+    
+    const check = (prop) => 
+        (c1[prop] === c2[prop] && c2[prop] === c3[prop]) || // All same
+        (c1[prop] !== c2[prop] && c2[prop] !== c3[prop] && c1[prop] !== c3[prop]); // All different
+
+    return check('num') && check('shape') && check('fill') && check('color');
+}
+
+function handleCorrectSet() {
+    console.log("找到一組 Set！");
+    score += 1;
+    correct += 1;
+    updateScoreDisplay();
+
+    // 標記要移除的卡牌
+    selected.forEach(index => {
+        const cardEl = boardEl.querySelector(`[data-index="${index}"]`);
+        if(cardEl) cardEl.classList.add('removing');
+    });
+
+    setTimeout(() => {
+        const currentCardCount = boardSlots.filter(c => c).length;
+        // 如果場上多於12張牌，或牌庫沒牌了，就不補牌，只移除
+        if (currentCardCount > 12 || deck.length === 0) {
+            selected.forEach(index => boardSlots[index] = null);
+             // 將後面的牌往前移動填補空位 (選用，可讓版面更整齊)
+            boardSlots = boardSlots.filter(c => c !== null);
+            while(boardSlots.length < MAX_SLOTS) boardSlots.push(null);
+        } else {
+            // 正常情況：移除舊牌，補上新牌
+            selected.forEach(index => {
+                boardSlots[index] = deck.pop() || null; // 如果牌庫抽完就補 null
+            });
+        }
+        
+        selected = [];
+        render();
+        ensureSetOrExhaust();
+    }, 300); // 等待移除動畫結束
+}
+
+function handleWrongSet() {
+    console.log("不是 Set！");
+    wrong += 1;
+    updateScoreDisplay();
+    selected = [];
+    render(); // 重新渲染，清除所有 .selected 樣式
+}
+
+
+function dealMore(manual = false) {
+    if (deck.length === 0) {
+        console.log("牌庫已空！");
+        return;
+    }
+    const emptySlots = [];
+    for(let i=0; i<boardSlots.length; i++) {
+        if(boardSlots[i] === null) emptySlots.push(i);
+    }
+
+    if (emptySlots.length < 3) {
+        if (!manual) console.log("沒有足夠的空間補牌。");
+        return;
+    }
+    
+    for (let i = 0; i < 3; i++) {
+        if (deck.length > 0 && emptySlots[i] !== undefined) {
+            boardSlots[emptySlots[i]] = deck.pop();
+        }
+    }
+    render();
+    ensureSetOrExhaust();
+}
+
+function ensureSetOrExhaust() {
+    if (gameOver) return;
+    let availableSet = findSet();
+    
+    // 當場上沒有Set，且牌庫還有牌時，自動補牌
+    while (!availableSet && deck.length > 0) {
+        console.log("場上沒有 Set，自動補牌...");
+        dealMore();
+        availableSet = findSet();
+    }
+    
+    // 如果牌庫空了，場上也找不到 Set，遊戲結束
+    if (!availableSet && deck.length === 0) {
+        handleGameOver();
+    }
+}
+
+function findSet() {
+    const cardsOnBoard = [];
+    boardSlots.forEach((card, index) => {
+        if (card) cardsOnBoard.push({ card, index });
+    });
+
+    if (cardsOnBoard.length < 3) return null;
+
+    for (let i = 0; i < cardsOnBoard.length; i++) {
+        for (let j = i + 1; j < cardsOnBoard.length; j++) {
+            for (let k = j + 1; k < cardsOnBoard.length; k++) {
+                const group = [cardsOnBoard[i].card, cardsOnBoard[j].card, cardsOnBoard[k].card];
+                if (isSet(group)) {
+                    return [cardsOnBoard[i].index, cardsOnBoard[j].index, cardsOnBoard[k].index];
+                }
+            }
+        }
+    }
+    return null; // 沒找到
+}
+
+function showHint() {
+    if (gameOver) return;
+    document.querySelectorAll('.hint').forEach(el => el.classList.remove('hint'));
+    const set = findSet();
+    if (set) {
+        set.forEach(index => {
+            const cardEl = boardEl.querySelector(`[data-index="${index}"]`);
+            if (cardEl) cardEl.classList.add('hint');
+        });
+    } else {
+        alert("場上目前沒有任何有效的 Set！");
+    }
+}
+
+// *** 4. 計時器與分數系統 ***
+
+function startTimer() {
+    startTime = Date.now();
+    timerInterval = setInterval(updateTimer, 1000);
+}
+
+function stopTimer() {
+    clearInterval(timerInterval);
+}
+
+function updateTimer() {
+    if (!startTime) return;
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
+    const seconds = (elapsed % 60).toString().padStart(2, '0');
+    timerEl.innerText = `${minutes}:${seconds}`;
+}
+
+function updateScoreDisplay() {
+    scoreEl.innerText = `分數: ${score} (正確: ${correct} / 錯誤: ${wrong})`;
+}
+
+// *** 5. 遊戲結束與歷史紀錄 ***
+
+function handleGameOver() {
+    stopTimer();
+    gameOver = true;
+    console.log("遊戲結束！");
+    saveGameHistory();
+    renderScoreboard();
+    showModal(
+        '遊戲結束！',
+        `你的最終成績：\n時間: ${timerEl.innerText}, 分數: ${score}, 正確: ${correct}, 錯誤: ${wrong}`,
+        [{ text: '重新開始', class: 'btn-primary', action: startGame }]
+    );
+}
+
+function saveGameHistory() {
+    const history = JSON.parse(localStorage.getItem('setGameHistory')) || [];
+    const record = {
+        date: new Date().toLocaleString(),
+        time: timerEl.innerText,
+        score: score,
+        correct: correct,
+        wrong: wrong
+    };
+    history.push(record);
+    localStorage.setItem('setGameHistory', JSON.stringify(history));
+}
+
+function renderScoreboard() {
+    const history = JSON.parse(localStorage.getItem('setGameHistory')) || [];
+    historyBody.innerHTML = history.reverse().map(rec => `
+        <tr>
+            <td>${rec.date}</td>
+            <td>${rec.time}</td>
+            <td>${rec.score}</td>
+            <td>${rec.correct}</td>
+            <td>${rec.wrong}</td>
+        </tr>
+    `).join('');
+}
+
+function clearHistory() {
+    if(confirm('確定要清除所有歷史紀錄嗎？')){
+        localStorage.removeItem('setGameHistory');
+        renderScoreboard();
+    }
+}
+
+// *** 6. 彈出視窗 (Modal) 相關函式 ***
+
+function showModal(title, message, actions = []) {
+    modalRoot.style.display = 'flex';
+    modalRoot.innerHTML = `
+        <div class="modal">
+            <h2>${title}</h2>
+            <p>${message.replace(/\n/g, '<br>')}</p>
+            <div class="actions">
+                ${actions.map((btn, i) => `<button id="modal-action-${i}" class="${btn.class}">${btn.text}</button>`).join('')}
+            </div>
+        </div>
+    `;
+    actions.forEach((btn, i) => {
+        document.getElementById(`modal-action-${i}`).addEventListener('click', btn.action);
+    });
+}
+
+function hideModal() {
+    modalRoot.style.display = 'none';
+}
+
+// *** 初始化 ***
+renderScoreboard();
+// 初始時顯示12個空卡槽
+render();
+</script>
+</body>
+</html>
