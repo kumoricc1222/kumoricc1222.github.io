@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Set 規則與難度選擇</title>
+<style>
+:root{--gap:24px;--maxw:1000px}
+*{box-sizing:border-box}
+body{font-family:system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans CJK TC", "PingFang TC", "Microsoft JhengHei", sans-serif; margin:0; padding:20px; background:#f7f7f8; color:#111}
+.container{max-width:var(--maxw); margin:0 auto; min-height:100vh; display:flex; align-items:center; justify-content:space-between; gap:var(--gap); padding:40px}
+.card{background:#fff; padding:24px; border-radius:12px; box-shadow:0 6px 20px rgba(20,20,30,0.06)}
+.left{flex:1 1 60%; text-align:left}
+.right{flex:0 0 260px; display:flex; flex-direction:column; align-items:stretch; justify-content:center; gap:14px}
+h1{margin:0 0 12px 0; font-size:1.6rem}
+p{margin:8px 0; line-height:1.6}
+.buttons a{display:inline-block; width:100%; padding:14px 16px; border-radius:10px; text-decoration:none; font-weight:600; background:linear-gradient(180deg,#ffffff,#f2f2f4); border:1px solid #ddd; color:#111; text-align:center; box-shadow:0 4px 10px rgba(0,0,0,0.04)}
+.buttons a:hover{transform:translateY(-2px); box-shadow:0 8px 20px rgba(0,0,0,0.06)}
+.footer{font-size:0.9rem; color:#555; text-align:center; margin-top:8px}
+@media (max-width:800px){
+  .container{flex-direction:column; padding:20px}
+  .right{flex:unset; width:100%}
+}
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="card left">
+      <h1>規則</h1>
+      <p>定義：設 Z₃ = {0,1,2}，其運算為模 3 的加法。則 Z₃⁴ 表示四維向量空間，其元素為 (a₁,a₂,a₃,a₄)，其中 aᵢ ∈ Z₃。</p>
+      <p>對應到 Set 遊戲，每張牌可以視為 Z₃⁴ 中的一個元素。三張牌 x,y,z ∈ Z₃⁴ 構成一個 Set ⇔ x + y + z = (0,0,0,0) 其中加法在 Z₃⁴ 中進行。</p>
+      <p>人話：三張牌是 Set ⇔ 在每一個屬性上，不是三張都一樣，就是三張都不同。</p>
+    </div>
+
+    <div class="card right" role="navigation" aria-label="難度選擇">
+      <div class="buttons">
+        <a href="game.html">IN</a>
+        <a href="hardmode.html">AT</a>
+        <a href="crazgame.html">SP</a>
+      </div>
+      <div class="footer">選取難度以開始遊戲</div>
+    </div>
+  </div>
+</body>
+</html>
