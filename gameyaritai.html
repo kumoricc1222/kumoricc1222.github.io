@@ -17,6 +17,11 @@ p{margin:8px 0; line-height:1.6}
 .buttons a{display:inline-block; width:100%; padding:14px 16px; border-radius:10px; text-decoration:none; font-weight:600; background:linear-gradient(180deg,#ffffff,#f2f2f4); border:1px solid #ddd; color:#111; text-align:center; box-shadow:0 4px 10px rgba(0,0,0,0.04)}
 .buttons a:hover{transform:translateY(-2px); box-shadow:0 8px 20px rgba(0,0,0,0.06)}
 .footer{font-size:0.9rem; color:#555; text-align:center; margin-top:8px}
+
+.tips{background:linear-gradient(180deg,#ffffff,#fbfbfc); padding:12px; border-radius:10px; border:1px solid #eee; box-shadow:0 4px 10px rgba(0,0,0,0.03); min-height:56px; display:flex; align-items:center; justify-content:center; text-align:center}
+.tips-inner{opacity:0; transition:opacity .36s ease; width:100%}
+.tips-inner.visible{opacity:1}
+
 @media (max-width:800px){
   .container{flex-direction:column; padding:20px}
   .right{flex:unset; width:100%}
@@ -30,9 +35,15 @@ p{margin:8px 0; line-height:1.6}
       <p>定義：設 Z₃ = {0,1,2}，其運算為模 3 的加法。則 Z₃⁴ 表示四維向量空間，其元素為 (a₁,a₂,a₃,a₄)，其中 aᵢ ∈ Z₃。</p>
       <p>對應到 Set 遊戲，每張牌可以視為 Z₃⁴ 中的一個元素。三張牌 x,y,z ∈ Z₃⁴ 構成一個 Set ⇔ x + y + z = (0,0,0,0) 其中加法在 Z₃⁴ 中進行。</p>
       <p>人話：三張牌是 Set ⇔ 在每一個屬性上，不是三張都一樣，就是三張都不同。</p>
+      <p>屬性：顏色/幾何形狀/內部塗色/數量</p>
     </div>
 
-    <div class="card right" role="navigation" aria-label="難度選擇">
+    <div class="card right" role="navigation" aria-label="難度選擇與提示">
+      <!-- tips 區塊（會自動更換） -->
+      <div class="tips" aria-live="polite" aria-atomic="true">
+        <div id="tipsInner" class="tips-inner"></div>
+      </div>
+
       <div class="buttons">
         <a href="normalmode.html">IN</a>
         <a href="hardmode.html">AT</a>
@@ -41,5 +52,39 @@ p{margin:8px 0; line-height:1.6}
       <div class="footer">選取難度以開始遊戲</div>
     </div>
   </div>
+
+<script>
+const tips = [
+  '看看提示就知道怎麼組了0v0',
+  '如果牌發滿了都沒有set，可以重開遊戲並去買一張彩票'
+];
+
+const tipsInner = document.getElementById('tipsInner');
+let idx = 0;
+let timer = null;
+
+function showTip(i){
+  tipsInner.classList.remove('visible');
+  setTimeout(() => {
+    tipsInner.textContent = tips[i];
+    void tipsInner.offsetWidth;
+    tipsInner.classList.add('visible');
+  }, 120);
+}
+
+function startTips(interval = 5000){
+  showTip(idx);
+  timer = setInterval(() => {
+    idx = (idx + 1) % tips.length;
+    showTip(idx);
+  }, interval);
+}
+
+window.addEventListener('beforeunload', () => {
+  if (timer) clearInterval(timer);
+});
+
+startTips(5000);
+</script>
 </body>
 </html>
