@@ -55,7 +55,8 @@ p{margin:8px 0; line-height:1.6}
 <script>
 const tips = [
   '看看提示就知道怎麼組了0v0',
-  '如果牌發滿了都沒有set，可以重開遊戲並去買一張彩票'
+  '如果牌發滿了都沒有set，可以重開遊戲並去買一張彩票',
+  '手機轉橫屏正確食用'
 ];
 
 const tipsInner = document.getElementById('tipsInner');
@@ -72,7 +73,7 @@ function showTip(i){
 }
 
 
-function startTips(interval = 8000){
+function startTips(interval = 4000){
   showTip(idx);
   timer = setInterval(() => {
     idx = (idx + 1) % tips.length;
@@ -86,7 +87,7 @@ window.addEventListener('beforeunload', () => {
 });
 
 /* 啟動 */
-startTips(7800);
+startTips(4000);
 </script>
 </body>
 </html>
