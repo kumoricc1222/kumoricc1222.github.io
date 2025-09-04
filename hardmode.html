@@ -78,4 +78,362 @@ td, th { border: 1px solid #e0e6ea; padding: 6px 8px; text-align:center }
 <pattern id="str-yellow" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
 <rect width="100%" height="100%" fill="transparent"></rect>
 <path d="M0 0 L0 8" stroke="#f9a825" stroke-width="2" stroke-linecap="square"></path>
-</
+</pattern>
+
+<pattern id="dot-red" patternUnits="userSpaceOnUse" width="6" height="6">
+<rect width="100%" height="100%" fill="transparent"></rect>
+<circle cx="2" cy="2" r="1" fill="#b71c1c" />
+</pattern>
+
+<pattern id="dot-green" patternUnits="userSpaceOnUse" width="6" height="6">
+<rect width="100%" height="100%" fill="transparent"></rect>
+<circle cx="2" cy="2" r="1" fill="#004d40" />
+</pattern>
+
+<pattern id="dot-purple" patternUnits="userSpaceOnUse" width="6" height="6">
+<rect width="100%" height="100%" fill="transparent"></rect>
+<circle cx="2" cy="2" r="1" fill="#9c27b0" />
+</pattern>
+
+<pattern id="dot-yellow" patternUnits="userSpaceOnUse" width="6" height="6">
+<rect width="100%" height="100%" fill="transparent"></rect>
+<circle cx="2" cy="2" r="1" fill="#f9a825" />
+</pattern>
+</defs>
+</svg>
+
+<div id="modalRoot" style="display:none"></div>
+<script>
+const MAX_SLOTS = 30;
+const INITIAL_DEAL = 24;
+const DEAL_STEP = 3;
+const shapes = ["oval", "diamond", "squiggle", "rectangle"];
+const fills = ["solid", "striped", "open", "dotted"];
+const colors = ["red", "green", "purple", "yellow"];
+const colorHex = { red: '#b71c1c', green: '#004d40', purple: '#9c27b0', yellow: '#f9a825' };
+
+let deck = [];
+let boardSlots = Array(MAX_SLOTS).fill(null);
+let selected = [];
+let score = 0;
+let correct = 0;
+let wrong = 0;
+let timerInterval = null;
+let startTime = null;
+let gameOver = false;
+let isProcessing = false;
+let newIndices = [];
+
+const boardEl = document.getElementById('board');
+const scoreEl = document.getElementById('score');
+const timerEl = document.getElementById('timer');
+const dealBtn = document.getElementById('dealMore');
+const startBtn = document.getElementById('startBtn');
+const resetBtn = document.getElementById('resetBtn');
+const hintBtn = document.getElementById('hintBtn');
+const modalRoot = document.getElementById('modalRoot');
+const historyBody = document.getElementById('history');
+
+startBtn.addEventListener('click', startGame);
+resetBtn.addEventListener('click', ()=>{ stopTimer(); startGame(); });
+dealBtn.addEventListener('click', ()=> dealMore(true));
+hintBtn.addEventListener('click', showHint);
+document.getElementById('clearHistory').addEventListener('click', clearHistory);
+
+boardEl.addEventListener('click', (e) => {
+    if (isProcessing) return;
+    const cardDiv = e.target.closest('.card:not(.empty)');
+    if (!cardDiv) return;
+    const idx = Number(cardDiv.dataset.index);
+    if (isNaN(idx) || gameOver || !boardSlots[idx]) return;
+    toggleSelect(idx);
+});
+
+function makeDeck() {
+    const d = [];
+    for (let num = 1; num <= 4; num++) {
+        for (let shape of shapes) {
+            for (let fill of fills) {
+                for (let color of colors) {
+                    d.push({ id: `${num}-${shape}-${fill}-${color}`, num, shape, fill, color });
+                }
+            }
+        }
+    }
+    return shuffle(d);
+}
+
+function shuffle(a) {
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
+
+function startGame() {
+    stopTimer();
+    deck = makeDeck();
+    boardSlots = Array(MAX_SLOTS).fill(null);
+    for (let i = 0; i < INITIAL_DEAL; i++) boardSlots[i] = deck.pop();
+    selected = [];
+    score = 0; correct = 0; wrong = 0;
+    gameOver = false; isProcessing = false;
+    newIndices = [...Array(INITIAL_DEAL).keys()];
+    updateScoreDisplay();
+    startTimer();
+    render(true);
+    ensureSetOrExhaust();
+    hideModal();
+}
+
+function render(isNewGame = false) {
+    boardEl.innerHTML = '';
+    const animIndices = isNewGame ? [...Array(INITIAL_DEAL).keys()] : newIndices.slice();
+    boardSlots.forEach((card, idx) => {
+        const div = document.createElement('div');
+        div.className = card ? 'card' : 'card empty';
+        div.dataset.index = idx;
+        if (animIndices.includes(idx)) div.classList.add('new');
+        if (selected.includes(idx)) div.classList.add('selected');
+        div.innerHTML = card ? cardHtml(card) : '';
+        boardEl.appendChild(div);
+    });
+    newIndices = [];
+    checkDealMore();
+}
+
+function getFill(c) {
+    if (c.fill === 'solid') return colorHex[c.color];
+    if (c.fill === 'striped') return `url(#str-${c.color})`;
+    if (c.fill === 'dotted') return `url(#dot-${c.color})`;
+    return 'none';
+}
+
+function cardHtml(c) {
+    const hex = colorHex[c.color] || '#000';
+    const fill = getFill(c);
+    const stroke = hex;
+    const svgW = 72;
+    const svgH = (c.num === 1) ? 36 : (c.num === 2) ? 30 : (c.num === 3) ? 24 : 20;
+    const thick = (c.shape === 'diamond' || c.shape === 'rectangle') ? 3 : 2;
+    let shapeSvg = '';
+
+    if (c.shape === 'oval') {
+        shapeSvg = `<svg viewBox="0 0 100 40" preserveAspectRatio="xMidYMid meet" style="width:${svgW}px;height:${svgH}px"><ellipse cx="50" cy="20" rx="38" ry="14" fill="${fill}" stroke="${stroke}" stroke-width="${thick}"/></svg>`;
+    } else if (c.shape === 'diamond') {
+        shapeSvg = `<svg viewBox="0 0 100 60" preserveAspectRatio="xMidYMid meet" style="width:${svgW}px;height:${svgH}px"><polygon points="50,6 94,30 50,54 6,30" fill="${fill}" stroke="${stroke}" stroke-width="${thick}"/></svg>`;
+    } else if (c.shape === 'rectangle') {
+        shapeSvg = `<svg viewBox="0 0 100 60" preserveAspectRatio="xMidYMid meet" style="width:${svgW}px;height:${svgH}px"><rect x="12" y="12" width="76" height="36" rx="6" fill="${fill}" stroke="${stroke}" stroke-width="${thick}"/></svg>`;
+    } else {
+        shapeSvg = `<svg viewBox="0 0 120 48" preserveAspectRatio="xMidYMid meet" style="width:${svgW}px;height:${svgH}px"><path d="M8 24 C18 6,38 6,48 24 C58 42,78 42,88 24 C98 6,118 6,112 24 C106 42,86 42,76 24 C66 6,46 6,36 24 C26 42,6 42,8 24 Z" fill="${fill}" stroke="${stroke}" stroke-width="${thick}"/></svg>`;
+    }
+
+    let items = '';
+    for (let i = 0; i < c.num; i++) items += `<div style="margin:2px 0">${shapeSvg}</div>`;
+    return `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%">${items}</div>`;
+}
+
+function toggleSelect(idx) {
+    const pos = selected.indexOf(idx);
+    if (pos > -1) {
+        selected.splice(pos, 1);
+    } else if (selected.length < 4) {  // 改為最多選 4 張
+        selected.push(idx);
+    }
+    render();
+    if (selected.length === 4) handleFourSelected(); // 選滿 4 張才判定
+}
+
+async function handleFourSelected() {
+    isProcessing = true;
+    const cards = selected.map(i => boardSlots[i]);
+    if (isSet(cards)) {
+        score++; correct++;
+        document.querySelectorAll('.selected').forEach(n => n.classList.add('removing'));
+        await new Promise(r => setTimeout(r, 320));
+        selected.forEach(i => boardSlots[i] = null);
+        fillToMinimum();
+    } else {
+        wrong++;
+        const nodes = Array.from(document.querySelectorAll('.selected'));
+        nodes.forEach(n => n.animate([
+            { transform: 'translateX(-5px)' },
+            { transform: 'translateX(5px)' },
+            { transform: 'translateX(-5px)' },
+            { transform: 'translateX(5px)' },
+            { transform: 'translateX(0)' }
+        ], { duration: 300 }));
+        await new Promise(r => setTimeout(r, 300));
+    }
+    selected = [];
+    updateScoreDisplay();
+    render();
+    ensureSetOrExhaust();
+    checkEnd();
+    isProcessing = false;
+}
+
+function isSet(cards) {
+    // 現在驗證 4 張卡：每個屬性要麼 4 張全相同，要麼 4 張全不同
+    if (cards.length < 4 || cards.some(c => !c)) return false;
+    function allSameOrAllDiff(...vals) {
+        const uniq = new Set(vals);
+        // 全相同或全不相同（4 個互異）
+        return uniq.size === 1 || uniq.size === vals.length;
+    }
+    return allSameOrAllDiff(cards[0].num, cards[1].num, cards[2].num, cards[3].num) &&
+           allSameOrAllDiff(cards[0].shape, cards[1].shape, cards[2].shape, cards[3].shape) &&
+           allSameOrAllDiff(cards[0].fill, cards[1].fill, cards[2].fill, cards[3].fill) &&
+           allSameOrAllDiff(cards[0].color, cards[1].color, cards[2].color, cards[3].color);
+}
+
+function fillToMinimum() {
+    let active = boardSlots.filter(x => x).length;
+    for (let i = 0; i < MAX_SLOTS && active < INITIAL_DEAL; i++) {
+        if (!boardSlots[i] && deck.length > 0) {
+            boardSlots[i] = deck.pop();
+            newIndices.push(i);
+            active++;
+        }
+    }
+    // If there are other nulls within the first INITIAL_DEAL that remain (rare), try to fill them too
+    for (let i = 0; i < MAX_SLOTS && deck.length > 0; i++) {
+        if (boardSlots[i] === null && boardSlots.filter(x => x).length < INITIAL_DEAL) {
+            boardSlots[i] = deck.pop();
+            newIndices.push(i);
+        }
+    }
+}
+
+function dealMore(forced = false) {
+    if (!forced) return;
+    if (deck.length === 0) return;
+    let added = 0;
+    for (let i = 0; i < MAX_SLOTS && added < DEAL_STEP; i++) {
+        if (!boardSlots[i]) {
+            boardSlots[i] = deck.pop();
+            newIndices.push(i);
+            added++;
+        }
+    }
+    render();
+    ensureSetOrExhaust();
+}
+
+function findAnySet() {
+    const active = boardSlots.map((c, i) => ({ c, i })).filter(x => x.c);
+    const n = active.length;
+    if (n < 4) return null;
+    for (let a = 0; a < n - 3; a++) {
+        for (let b = a + 1; b < n - 2; b++) {
+            for (let c = b + 1; c < n - 1; c++) {
+                for (let d = c + 1; d < n; d++) {
+                    const ca = active[a].c, cb = active[b].c, cc = active[c].c, cd = active[d].c;
+                    if (isSet([ca, cb, cc, cd])) return [active[a].i, active[b].i, active[c].i, active[d].i];
+                }
+            }
+        }
+    }
+    return null;
+}
+
+function showHint() {
+    if (isProcessing) return;
+    const s = findAnySet();
+    if (s) {
+        s.forEach(i => {
+            const n = boardEl.querySelector(`.card[data-index='${i}']`);
+            if (n) {
+                n.classList.add('hint');
+                setTimeout(() => n.classList.remove('hint'), 900);
+            }
+        });
+    } else {
+        if (deck.length > 0) {
+            dealMore(true);
+        } else {
+            alert('場上沒有任何 Set，且牌堆已用完。');
+        }
+    }
+}
+
+function ensureSetOrExhaust() {
+    if (!findAnySet() && deck.length > 0) {
+        let attempts = 0;
+        while (!findAnySet() && deck.length > 0 && boardSlots.filter(x => x).length < MAX_SLOTS && attempts < 6) {
+            dealMore(true);
+            attempts++;
+        }
+    }
+}
+
+function checkEnd() {
+    if (!findAnySet() && deck.length === 0) {
+        gameOver = true;
+        stopTimer();
+        saveHistory();
+        showModal('遊戲結束！', `分數: ${score}<br>正確: ${correct}<br>錯誤: ${wrong}`);
+    }
+}
+
+function checkDealMore() {
+    dealBtn.style.display = (deck.length > 0 && boardSlots.filter(x => x).length < MAX_SLOTS) ? 'inline-block' : 'none';
+}
+
+function updateScoreDisplay() {
+    scoreEl.innerText = `分數: ${score} (正確: ${correct} / 錯誤: ${wrong})`;
+}
+
+function startTimer() {
+    startTime = Date.now();
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+        const diff = Math.floor((Date.now() - startTime) / 1000);
+        timerEl.innerText = `${String(Math.floor(diff / 60)).padStart(2, '0')}:${String(diff % 60).padStart(2, '0')}`;
+    }, 1000);
+}
+
+function stopTimer() {
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = null;
+}
+
+function showModal(title, content) {
+    modalRoot.innerHTML = `<div class="modal-backdrop"><div class="modal"><h2>${title}</h2><p>${content}</p><div class="actions"><button class="btn-primary" id="modal-restart-btn">再玩一次</button><button class="btn-ghost" id="modal-close-btn">關閉</button></div></div></div>`;
+    document.getElementById('modal-restart-btn').addEventListener('click', ()=>{ hideModal(); startGame(); });
+    document.getElementById('modal-close-btn').addEventListener('click', hideModal);
+    modalRoot.style.display = 'flex';
+}
+
+function hideModal() {
+    modalRoot.style.display = 'none';
+    modalRoot.innerHTML = '';
+}
+
+function saveHistory() {
+    const hist = JSON.parse(localStorage.getItem('setGameHistory') || '[]');
+    const now = new Date();
+    const record = { date: now.toLocaleDateString(), time: timerEl.innerText, score, correct, wrong };
+    hist.unshift(record);
+    localStorage.setItem('setGameHistory', JSON.stringify(hist.slice(0, 50)));
+    loadHistory();
+}
+
+function loadHistory() {
+    const hist = JSON.parse(localStorage.getItem('setGameHistory') || '[]');
+    historyBody.innerHTML = hist.map(r => `<tr><td>${r.date}</td><td>${r.time}</td><td>${r.score}</td><td>${r.correct}</td><td>${r.wrong}</td></tr>`).join('');
+}
+
+function clearHistory() {
+    if (confirm('確定要清除所有歷史紀錄嗎？')) {
+        localStorage.removeItem('setGameHistory');
+        loadHistory();
+    }
+}
+
+loadHistory();
+render();
+</script>
+</body>
+</html>
